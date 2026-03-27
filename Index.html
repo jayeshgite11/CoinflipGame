@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CoinFlip RL</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f1923;
+    --panel: #1a2636;
+    --card: #1e2f42;
+    --border: #2a3f58;
+    --yellow: #f59e0b;
+    --yellow-glow: rgba(245,158,11,0.4);
+    --blue: #3d7ae5;
+    --blue-glow: rgba(61,122,229,0.4);
+    --green: #22c55e;
+    --green-glow: rgba(34,197,94,0.3);
+    --red: #ef4444;
+    --accent: #0dd3a4;
+    --text: #e2e8f0;
+    --muted: #64748b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px;
+    gap: 20px;
+  }
+
+  h1 {
+    font-size: 1.3rem;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--accent);
+    text-shadow: 0 0 18px var(--accent);
+  }
+
+  .main {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    width: 100%;
+    max-width: 900px;
+  }
+
+  /* ── COIN SIDE ── */
+  .coin-side {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    flex: 1;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px 20px;
+  }
+
+  .legend {
+    display: flex;
+    gap: 18px;
+    font-size: 0.78rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+  .legend-yellow { background: var(--yellow); box-shadow: 0 0 6px var(--yellow-glow); }
+  .legend-blue   { background: var(--blue);   box-shadow: 0 0 6px var(--blue-glow); }
+
+  .coin-wrap { perspective: 600px; width: 130px; height: 130px; }
+  .coin {
+    width: 100%; height: 100%;
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 0.6s ease;
+  }
+  .coin.flipping { animation: coinSpin 0.7s ease-in-out; }
+  @keyframes coinSpin {
+    0%   { transform: rotateY(0deg); }
+    50%  { transform: rotateY(900deg); }
+    100% { transform: rotateY(1800deg); }
+  }
+  .coin-face {
+    position: absolute;
+    width: 100%; height: 100%;
+    border-radius: 50%;
+    backface-visibility: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.7rem;
+    font-weight: 700;
+  }
+  .coin-heads {
+    background: radial-gradient(circle at 35% 30%, #fcd34d, #d97706);
+    box-shadow: 0 0 30px var(--yellow-glow), 0 0 60px rgba(245,158,11,0.15);
+    color: #7c3a00;
+  }
+  .coin-tails {
+    background: radial-gradient(circle at 35% 30%, #5b9cf5, #2055b5);
+    box-shadow: 0 0 30px var(--blue-glow), 0 0 60px rgba(61,122,229,0.15);
+    color: #0a2156;
+    transform: rotateY(180deg);
+  }
+
+  .result-label {
+    font-size: 1.1rem; font-weight: 700; letter-spacing: 3px;
+    text-transform: uppercase; height: 24px; transition: color 0.3s;
+  }
+  .result-label.heads { color: var(--yellow); text-shadow: 0 0 12px var(--yellow-glow); }
+  .result-label.tails { color: var(--blue);   text-shadow: 0 0 12px var(--blue-glow); }
+  .result-label.idle  { color: var(--muted); }
+
+  /* Prob bars */
+  .prob-bars { width: 100%; display: flex; flex-direction: column; gap: 10px; }
+  .bar-row { display: flex; flex-direction: column; gap: 4px; }
+  .bar-header { display: flex; justify-content: space-between; font-size: 0.75rem; letter-spacing: 1px; text-transform: uppercase; }
+  .bar-track { height: 10px; background: var(--card); border-radius: 99px; overflow: hidden; border: 1px solid var(--border); }
+  .bar-fill { height: 100%; border-radius: 99px; transition: width 0.5s ease; }
+  .bar-fill.yellow { background: linear-gradient(90deg, #f59e0b, #fcd34d); box-shadow: 0 0 8px var(--yellow-glow); }
+  .bar-fill.blue   { background: linear-gradient(90deg, #2055b5, #5b9cf5); box-shadow: 0 0 8px var(--blue-glow); }
+  .bar-fill.green  { background: linear-gradient(90deg, #16a34a, #22c55e); box-shadow: 0 0 8px var(--green-glow); }
+
+  /* ── RIGHT SIDE ── */
+  .right-side {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 260px;
+  }
+
+  .panel-box {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  label.lbl {
+    font-size: 0.7rem; color: var(--muted);
+    letter-spacing: 1.5px; text-transform: uppercase;
+    display: block; margin-bottom: 4px;
+  }
+
+  .input-row {
+    display: flex; align-items: center;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 7px 10px; gap: 8px;
+  }
+  .input-row input {
+    background: none; border: none; outline: none;
+    color: var(--text); font-family: 'JetBrains Mono', monospace;
+    font-size: 0.88rem; flex: 1; width: 0;
+  }
+  .coin-dot { width: 16px; height: 16px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fbbf24, #d97706); flex-shrink: 0; }
+
+  .bet-btns { display: flex; gap: 6px; }
+  .bet-btns button {
+    flex: 1; background: var(--card); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--muted);
+    font-family: 'Rajdhani', sans-serif; font-size: 0.82rem; font-weight: 600;
+    padding: 5px; cursor: pointer; transition: all .2s;
+  }
+  .bet-btns button:hover { color: var(--text); border-color: var(--accent); }
+
+  .pick-row { display: flex; gap: 8px; }
+  .pick-btn {
+    flex: 1; padding: 10px 6px; border-radius: 10px;
+    font-family: 'Rajdhani', sans-serif; font-size: 0.9rem; font-weight: 700;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    cursor: pointer; border: 2px solid transparent; transition: all .2s;
+  }
+  .pick-btn.yellow-btn { background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.4); color: var(--yellow); }
+  .pick-btn.yellow-btn:hover, .pick-btn.yellow-btn.active { background: rgba(245,158,11,0.22); border-color: var(--yellow); box-shadow: 0 0 14px var(--yellow-glow); }
+  .pick-btn.blue-btn { background: rgba(61,122,229,0.12); border-color: rgba(61,122,229,0.4); color: var(--blue); }
+  .pick-btn.blue-btn:hover, .pick-btn.blue-btn.active { background: rgba(61,122,229,0.22); border-color: var(--blue); box-shadow: 0 0 14px var(--blue-glow); }
+
+  .stat-row { display: flex; justify-content: space-between; align-items: center; }
+  .stat-lbl { font-size: 0.72rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+  .stat-val { font-family: 'JetBrains Mono', monospace; font-size: 0.92rem; font-weight: 600; }
+
+  .rl-header { font-size: 0.7rem; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; }
+  .q-rows { display: flex; flex-direction: column; gap: 5px; }
+  .q-row {
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--muted);
+    background: var(--bg); border-radius: 6px; padding: 4px 8px;
+  }
+  .q-val { font-weight: 600; }
+  .q-val.pos { color: var(--green); }
+  .q-val.neg { color: var(--red); }
+
+  .eps-row { display: flex; flex-direction: column; gap: 4px; }
+  .eps-track { height: 5px; background: var(--bg); border-radius: 99px; overflow: hidden; border: 1px solid var(--border); }
+  .eps-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--blue)); border-radius: 99px; transition: width 0.4s ease; }
+
+  .btn-flip {
+    width: 100%; padding: 13px;
+    background: linear-gradient(135deg, var(--green), #16a34a);
+    border: none; border-radius: 10px; color: #fff;
+    font-family: 'Rajdhani', sans-serif; font-size: 1.05rem; font-weight: 700;
+    letter-spacing: 2px; text-transform: uppercase; cursor: pointer;
+    box-shadow: 0 4px 20px var(--green-glow); transition: all .2s;
+  }
+  .btn-flip:hover { filter: brightness(1.12); box-shadow: 0 4px 28px var(--green-glow); }
+  .btn-flip:disabled { filter: brightness(0.45); cursor: not-allowed; }
+
+  /* ── CHARTS ── */
+  .charts-wrap {
+    width: 100%;
+    max-width: 900px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .chart-tabs {
+    display: flex;
+    background: var(--card);
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    width: fit-content;
+  }
+  .chart-tab {
+    padding: 8px 18px;
+    font-size: 0.78rem; font-weight: 600;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    cursor: pointer; color: var(--muted);
+    border: none; background: none;
+    font-family: 'Rajdhani', sans-serif;
+    transition: all .2s;
+  }
+  .chart-tab.active { background: var(--panel); color: var(--text); }
+
+  .chart-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 18px;
+  }
+
+  .chart-legend {
+    display: flex; gap: 16px; flex-wrap: wrap;
+    margin-bottom: 12px; font-size: 0.72rem;
+    letter-spacing: 1px; text-transform: uppercase;
+  }
+  .chart-legend span { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+  .leg-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .leg-dash { width: 18px; height: 2px; flex-shrink: 0; background: var(--muted); opacity: 0.5; }
+
+  /* log */
+  .log-area {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 14px; padding: 12px 16px;
+    max-height: 110px; overflow-y: auto;
+    width: 100%; max-width: 900px;
+  }
+  .log-title { font-size: 0.68rem; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 7px; }
+  .log-entry { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--muted); padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
+  .win-tag { color: var(--green); font-weight: 600; }
+  .lose-tag { color: var(--red); font-weight: 600; }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+</style>
+</head>
+<body>
+
+<h1>⬡ CoinFlip · RL</h1>
+
+<div class="main">
+  <!-- COIN SIDE -->
+  <div class="coin-side">
+    <div class="legend">
+      <span><span class="legend-dot legend-yellow"></span>Yellow = Heads</span>
+      <span><span class="legend-dot legend-blue"></span>Blue = Tails</span>
+    </div>
+
+    <div class="coin-wrap">
+      <div class="coin" id="coin">
+        <div class="coin-face coin-heads">H</div>
+        <div class="coin-face coin-tails">T</div>
+      </div>
+    </div>
+
+    <div class="result-label idle" id="resultLabel">— FLIP TO START —</div>
+
+    <!-- Probability bars -->
+    <div class="prob-bars">
+      <div class="bar-row">
+        <div class="bar-header">
+          <span style="color:var(--yellow)">🟡 Heads</span>
+          <span id="headsPct" style="color:var(--yellow);font-family:'JetBrains Mono',monospace">0.00%</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill yellow" id="headsBar" style="width:0%"></div></div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-header">
+          <span style="color:var(--blue)">🔵 Tails</span>
+          <span id="tailsPct" style="color:var(--blue);font-family:'JetBrains Mono',monospace">0.00%</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill blue" id="tailsBar" style="width:0%"></div></div>
+      </div>
+      <!-- Agent accuracy bar -->
+      <div class="bar-row">
+        <div class="bar-header">
+          <span style="color:var(--green)">🧠 Agent Accuracy</span>
+          <span id="agentAccPct" style="color:var(--green);font-family:'JetBrains Mono',monospace">—</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill green" id="agentAccBar" style="width:0%"></div></div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:18px;font-size:0.8rem;">
+      <div style="text-align:center">
+        <div style="color:var(--muted);letter-spacing:1px;font-size:0.65rem;text-transform:uppercase">Heads</div>
+        <div id="headsCount" style="font-family:'JetBrains Mono',monospace;color:var(--yellow);font-size:1rem;font-weight:600">0</div>
+      </div>
+      <div style="text-align:center">
+        <div style="color:var(--muted);letter-spacing:1px;font-size:0.65rem;text-transform:uppercase">Tails</div>
+        <div id="tailsCount" style="font-family:'JetBrains Mono',monospace;color:var(--blue);font-size:1rem;font-weight:600">0</div>
+      </div>
+      <div style="text-align:center">
+        <div style="color:var(--muted);letter-spacing:1px;font-size:0.65rem;text-transform:uppercase">Total</div>
+        <div id="totalFlips" style="font-family:'JetBrains Mono',monospace;color:var(--text);font-size:1rem;font-weight:600">0</div>
+      </div>
+      <div style="text-align:center">
+        <div style="color:var(--muted);letter-spacing:1px;font-size:0.65rem;text-transform:uppercase">Agent Wins</div>
+        <div id="agentWinsCount" style="font-family:'JetBrains Mono',monospace;color:var(--green);font-size:1rem;font-weight:600">0</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT SIDE -->
+  <div class="right-side">
+    <!-- Bet + pick -->
+    <div class="panel-box">
+      <div>
+        <label class="lbl">Bet Amount</label>
+        <div class="input-row">
+          <input id="betInput" type="number" value="5.00" step="1" min="1">
+          <div class="coin-dot"></div>
+        </div>
+        <div class="bet-btns" style="margin-top:6px">
+          <button onclick="adj(0.5)">½</button>
+          <button onclick="adj(2)">2×</button>
+        </div>
+      </div>
+      <div>
+        <label class="lbl">Your Pick</label>
+        <div class="pick-row">
+          <button class="pick-btn yellow-btn active" id="btnHeads" onclick="setPick('heads')">🟡 Heads</button>
+          <button class="pick-btn blue-btn" id="btnTails" onclick="setPick('tails')">🔵 Tails</button>
+        </div>
+      </div>
+      <button class="btn-flip" id="flipBtn" onclick="doFlip()">▶ Flip &amp; Bet</button>
+    </div>
+
+    <!-- Stats -->
+    <div class="panel-box">
+      <div class="stat-row"><span class="stat-lbl">Balance</span><span class="stat-val" id="balVal">100.00</span></div>
+      <div class="stat-row"><span class="stat-lbl">Wins / Rounds</span><span class="stat-val" id="winsVal">0 / 0</span></div>
+      <div class="stat-row"><span class="stat-lbl">Profit/Loss</span><span class="stat-val" id="plVal" style="color:var(--muted)">0.00</span></div>
+      <div class="stat-row"><span class="stat-lbl">Agent Pick</span><span class="stat-val" id="agentPick" style="color:var(--accent)">—</span></div>
+    </div>
+
+    <!-- RL Q-table -->
+    <div class="panel-box">
+      <div class="rl-header">🧠 Q-Learning Agent</div>
+      <div class="q-rows">
+        <div class="q-row"><span>BET heads</span><span class="q-val" id="qBH">0.000</span></div>
+        <div class="q-row"><span>BET tails</span><span class="q-val" id="qBT">0.000</span></div>
+        <div class="q-row"><span>SKIP</span><span class="q-val" id="qSK">0.000</span></div>
+      </div>
+      <div class="eps-row">
+        <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted)">
+          <span>Exploration ε</span><span id="epsVal" style="font-family:'JetBrains Mono',monospace">1.000</span>
+        </div>
+        <div class="eps-track"><div class="eps-fill" id="epsBar" style="width:100%"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CHARTS SECTION -->
+<div class="charts-wrap">
+  <div class="chart-tabs">
+    <button class="chart-tab active" id="tab0" onclick="switchTab(0)">Coin Probability</button>
+    <button class="chart-tab" id="tab1" onclick="switchTab(1)">Agent Picks</button>
+    <button class="chart-tab" id="tab2" onclick="switchTab(2)">Q-Values</button>
+  </div>
+
+  <div class="chart-panel">
+    <!-- Tab 0 -->
+    <div id="chartWrap0">
+      <div class="chart-legend">
+        <span><div class="leg-dot" style="background:#f59e0b"></div>Heads %</span>
+        <span><div class="leg-dot" style="background:#3d7ae5"></div>Tails %</span>
+        <span><div class="leg-dash"></div>50% line</span>
+      </div>
+      <div style="position:relative;width:100%;height:200px;"><canvas id="cProb"></canvas></div>
+    </div>
+    <!-- Tab 1 -->
+    <div id="chartWrap1" style="display:none">
+      <div class="chart-legend">
+        <span><div class="leg-dot" style="background:#f59e0b"></div>Picked heads %</span>
+        <span><div class="leg-dot" style="background:#3d7ae5"></div>Picked tails %</span>
+        <span><div class="leg-dot" style="background:#22c55e"></div>Agent accuracy %</span>
+      </div>
+      <div style="position:relative;width:100%;height:200px;"><canvas id="cAgent"></canvas></div>
+    </div>
+    <!-- Tab 2 -->
+    <div id="chartWrap2" style="display:none">
+      <div class="chart-legend">
+        <span><div class="leg-dot" style="background:#f59e0b"></div>Q(bet heads)</span>
+        <span><div class="leg-dot" style="background:#3d7ae5"></div>Q(bet tails)</span>
+        <span><div class="leg-dot" style="background:#64748b"></div>Q(skip)</span>
+      </div>
+      <div style="position:relative;width:100%;height:200px;"><canvas id="cQ"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- Log -->
+<div class="log-area">
+  <div class="log-title">▸ Round Log</div>
+  <div id="roundLog"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+/* ── Q-Learning ──────────────────────────────
+   States:  "heads" | "tails"  (last flip result)
+   Actions: "bet_heads" | "bet_tails" | "skip"
+─────────────────────────────────────────────── */
+const Q = {
+  heads: { bet_heads: 0, bet_tails: 0, skip: 0 },
+  tails: { bet_heads: 0, bet_tails: 0, skip: 0 }
+};
+
+const alpha = 0.15, gamma = 0.9;
+let epsilon = 1.0, decay = 0.97;
+
+let balance = 100, startBal = 100;
+let wins = 0, rounds = 0;
+let headsTotal = 0, tailsTotal = 0;
+let agentWins = 0, agentRounds = 0;
+let agentPickedH = 0, agentPickedT = 0;
+let lastState = 'heads';
+let userPick = 'heads';
+let busy = false;
+
+/* chart history */
+let histN = [], histH = [], histT = [];
+let histAH = [], histAT = [], histAAcc = [];
+let histQBH = [], histQBT = [], histQSK = [];
+let charts = {};
+
+/* ── Chart helpers ── */
+function mkChart(id, datasets, yOpts) {
+  const c = new Chart(document.getElementById(id).getContext('2d'), {
+    type: 'line',
+    data: { labels: [], datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { title: i => 'Flip #' + i[0].label } } },
+      scales: {
+        x: { ticks: { color: '#64748b', maxTicksLimit: 8, font: { size: 10 }, autoSkip: true }, grid: { color: 'rgba(42,63,88,0.7)' } },
+        y: { ...yOpts, ticks: { color: '#64748b', font: { size: 10 }, ...(yOpts.ticks||{}) }, grid: { color: 'rgba(42,63,88,0.7)' } }
+      }
+    }
+  });
+  return c;
+}
+
+function buildCharts() {
+  const line = (color, width) => ({ borderColor: color, borderWidth: width||2, pointRadius: 0, tension: 0.35, fill: false });
+  charts.prob  = mkChart('cProb',  [
+    { label:'Heads %', data:[], ...line('#f59e0b') },
+    { label:'Tails %', data:[], ...line('#3d7ae5') },
+    { label:'50%',     data:[], ...line('#64748b',1), borderDash:[5,4] }
+  ], { min:0, max:100, ticks:{ callback: v => v+'%' } });
+
+  charts.agent = mkChart('cAgent', [
+    { label:'Picked heads %',   data:[], ...line('#f59e0b') },
+    { label:'Picked tails %',   data:[], ...line('#3d7ae5') },
+    { label:'Agent accuracy %', data:[], ...line('#22c55e') }
+  ], { min:0, max:100, ticks:{ callback: v => v+'%' } });
+
+  charts.q = mkChart('cQ', [
+    { label:'Q(bet heads)', data:[], ...line('#f59e0b') },
+    { label:'Q(bet tails)', data:[], ...line('#3d7ae5') },
+    { label:'Q(skip)',      data:[], ...line('#64748b',1.5) }
+  ], {});
+}
+
+function samplePoint(n) {
+  if (n <= 100) return true;
+  if (n <= 500) return n % 5 === 0;
+  return n % 10 === 0;
+}
+
+function pushHistory() {
+  const n = headsTotal + tailsTotal;
+  if (!samplePoint(n)) return;
+  histN.push(n);
+  histH.push(+(headsTotal / n * 100).toFixed(2));
+  histT.push(+(tailsTotal / n * 100).toFixed(2));
+  histAH.push(agentRounds ? +(agentPickedH / agentRounds * 100).toFixed(2) : 0);
+  histAT.push(agentRounds ? +(agentPickedT / agentRounds * 100).toFixed(2) : 0);
+  histAAcc.push(agentRounds ? +(agentWins / agentRounds * 100).toFixed(2) : 0);
+  histQBH.push(+Q[lastState].bet_heads.toFixed(4));
+  histQBT.push(+Q[lastState].bet_tails.toFixed(4));
+  histQSK.push(+Q[lastState].skip.toFixed(4));
+
+  charts.prob.data.labels = histN;
+  charts.prob.data.datasets[0].data = histH;
+  charts.prob.data.datasets[1].data = histT;
+  charts.prob.data.datasets[2].data = histN.map(() => 50);
+  charts.prob.update('none');
+
+  charts.agent.data.labels = histN;
+  charts.agent.data.datasets[0].data = histAH;
+  charts.agent.data.datasets[1].data = histAT;
+  charts.agent.data.datasets[2].data = histAAcc;
+  charts.agent.update('none');
+
+  charts.q.data.labels = histN;
+  charts.q.data.datasets[0].data = histQBH;
+  charts.q.data.datasets[1].data = histQBT;
+  charts.q.data.datasets[2].data = histQSK;
+  charts.q.update('none');
+}
+
+function switchTab(i) {
+  [0,1,2].forEach(j => {
+    document.getElementById('chartWrap'+j).style.display = j===i ? 'block' : 'none';
+    document.getElementById('tab'+j).classList.toggle('active', j===i);
+  });
+  Object.values(charts).forEach(c => c.resize());
+}
+
+/* ── RL ── */
+function chooseAction(state) {
+  if (Math.random() < epsilon)
+    return ['bet_heads','bet_tails','skip'][Math.floor(Math.random()*3)];
+  return Object.entries(Q[state]).sort((a,b) => b[1]-a[1])[0][0];
+}
+
+function updateQ(state, action, reward, nextState) {
+  const maxNext = Math.max(...Object.values(Q[nextState]));
+  Q[state][action] += alpha * (reward + gamma * maxNext - Q[state][action]);
+  epsilon = Math.max(0.05, epsilon * decay);
+}
+
+function setPick(p) {
+  userPick = p;
+  document.getElementById('btnHeads').classList.toggle('active', p==='heads');
+  document.getElementById('btnTails').classList.toggle('active', p==='tails');
+}
+
+function adj(f) {
+  const el = document.getElementById('betInput');
+  el.value = Math.max(1, parseFloat(el.value)*f).toFixed(2);
+}
+
+/* ── Main flip ── */
+async function doFlip() {
+  if (busy) return;
+  busy = true;
+  document.getElementById('flipBtn').disabled = true;
+
+  const bet = parseFloat(document.getElementById('betInput').value) || 5;
+  const action = chooseAction(lastState);
+
+  // agent tracking
+  if (action === 'bet_heads') agentPickedH++;
+  else if (action === 'bet_tails') agentPickedT++;
+  agentRounds++;
+
+  // show agent pick
+  const apEl = document.getElementById('agentPick');
+  if (action === 'skip')           { apEl.textContent = 'SKIP';      apEl.style.color = 'var(--muted)'; }
+  else if (action === 'bet_heads') { apEl.textContent = '🟡 HEADS'; apEl.style.color = 'var(--yellow)'; }
+  else                             { apEl.textContent = '🔵 TAILS'; apEl.style.color = 'var(--blue)'; }
+
+  // flip coin
+  const coin = document.getElementById('coin');
+  const result = Math.random() < 0.5 ? 'heads' : 'tails';
+  coin.classList.add('flipping');
+  await new Promise(r => setTimeout(r, 700));
+  coin.classList.remove('flipping');
+  coin.style.transform = result === 'heads' ? 'rotateY(0deg)' : 'rotateY(180deg)';
+
+  // update counts
+  if (result === 'heads') headsTotal++; else tailsTotal++;
+  const total = headsTotal + tailsTotal;
+  const hPct = (headsTotal / total * 100).toFixed(2);
+  const tPct = (tailsTotal / total * 100).toFixed(2);
+  document.getElementById('headsPct').textContent = hPct + '%';
+  document.getElementById('tailsPct').textContent = tPct + '%';
+  document.getElementById('headsBar').style.width = hPct + '%';
+  document.getElementById('tailsBar').style.width = tPct + '%';
+  document.getElementById('headsCount').textContent = headsTotal;
+  document.getElementById('tailsCount').textContent = tailsTotal;
+  document.getElementById('totalFlips').textContent = total;
+
+  const rl = document.getElementById('resultLabel');
+  rl.textContent = result === 'heads' ? '🟡 HEADS' : '🔵 TAILS';
+  rl.className = 'result-label ' + result;
+
+  // reward & balance
+  let reward = 0, won = false;
+  if (action !== 'skip') {
+    const agentBetOn = action === 'bet_heads' ? 'heads' : 'tails';
+    if (agentBetOn === result) { agentWins++; reward = bet; } else { reward = -bet; }
+    won = (userPick === result);
+    balance = Math.max(0, balance + (won ? bet : -bet));
+    if (won) wins++;
+
+    const accPct = (agentWins / agentRounds * 100).toFixed(2);
+    document.getElementById('agentAccPct').textContent = accPct + '%';
+    document.getElementById('agentAccBar').style.width = accPct + '%';
+    document.getElementById('agentWinsCount').textContent = agentWins;
+  }
+  rounds++;
+
+  updateQ(lastState, action, reward, result);
+  lastState = result;
+  pushHistory();
+
+  const pl = balance - startBal;
+  document.getElementById('balVal').textContent = balance.toFixed(2);
+  document.getElementById('winsVal').textContent = `${wins} / ${rounds}`;
+  const plEl = document.getElementById('plVal');
+  plEl.textContent = (pl >= 0 ? '+' : '') + pl.toFixed(2);
+  plEl.style.color = pl >= 0 ? 'var(--green)' : 'var(--red)';
+
+  refreshQ();
+  addLog(action, result, won, reward, userPick, bet);
+
+  busy = false;
+  document.getElementById('flipBtn').disabled = false;
+}
+
+function refreshQ() {
+  const fmt = v => (v >= 0 ? '+' : '') + v.toFixed(3);
+  [['qBH', Q[lastState].bet_heads],
+   ['qBT', Q[lastState].bet_tails],
+   ['qSK', Q[lastState].skip]].forEach(([id, v]) => {
+    const el = document.getElementById(id);
+    el.textContent = fmt(v);
+    el.className = 'q-val' + (v > 0 ? ' pos' : v < 0 ? ' neg' : '');
+  });
+  document.getElementById('epsBar').style.width = (epsilon * 100) + '%';
+  document.getElementById('epsVal').textContent = epsilon.toFixed(3);
+}
+
+function addLog(action, result, won, reward, userBet, bet) {
+  const log = document.getElementById('roundLog');
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  const res = result === 'heads' ? '🟡' : '🔵';
+  const tag = action === 'skip'
+    ? `<span style="color:var(--muted)">SKIP</span>`
+    : won
+      ? `<span class="win-tag">WIN +${Math.abs(reward).toFixed(2)}</span>`
+      : `<span class="lose-tag">LOSS -${Math.abs(reward).toFixed(2)}</span>`;
+  entry.innerHTML = `Rd${String(rounds).padStart(3,'0')} · ${res} ${result.toUpperCase()} · you:${userBet} · agent:${action} · ε=${epsilon.toFixed(3)} · ${tag}`;
+  log.insertBefore(entry, log.firstChild);
+  if (log.children.length > 50) log.lastChild.remove();
+}
+
+buildCharts();
+</script>
+</body>
+</html>
